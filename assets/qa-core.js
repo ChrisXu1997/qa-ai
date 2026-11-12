@@ -92,8 +92,20 @@
   function markdown(text) {
     const codeBlocks = [];
     let source = String(text ?? "").replace(/```([\w-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-      const token = `\u0000CODE${codeBlocks.length}\u0000`;
-      codeBlocks.push(`<pre class="qa-code"><code>${esc(code.replace(/^\n+|\n+$/g, ""))}</code></pre>`);
+      const token = `\u0000C${codeBlocks.length}\u0000`;
+      codeBlocks.push(`<pre><code>${esc(code.replace(/^\n+|\n+$/g, ""))}</code></pre>`);
+      return token;
+    });
+    // Markdown 表格 → HTML 表格
+    const tables = [];
+    source = source.replace(/(^\|.+\|\s*$\n?)+/gm, (block) => {
+      const token = `\u0000T${tables.length}\u0000`;
+      const rows = block.trim().split(/\n/).filter((l) => !/^\s*\|[\s:|-]+\|\s*$/.test(l));
+      if (rows.length < 2) return block;
+      const parse = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+      const headers = parse(rows[0]);
+      const bodyRows = rows.slice(1).map(parse);
+      tables.push(`<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${bodyRows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
       return token;
     });
     source = esc(source)
@@ -105,7 +117,8 @@
     source = source.replace(/(^|\n)\s*[-*]\s+([^\n]+)/g, "$1<li>$2</li>");
     source = source.replace(/(?:<li>[\s\S]*?<\/li>)/g, (block) => `<ul>${block}</ul>`).replace(/<\/ul>\s*<ul>/g, "");
     source = source.split(/\n{2,}/).map((part) => part.trim() ? `<p>${part.replace(/\n/g, "<br>")}</p>` : "").join("");
-    codeBlocks.forEach((block, index) => { source = source.replace(`\u0000CODE${index}\u0000`, block); });
+    codeBlocks.forEach((block, index) => { source = source.replace(`\u0000C${index}\u0000`, block); });
+    tables.forEach((table, index) => { source = source.replace(`\u0000T${index}\u0000`, table); });
     return source;
   }
 
